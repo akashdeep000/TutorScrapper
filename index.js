@@ -6,11 +6,75 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const LOCATIONS = [
-    "melbourne",
+    // New South Wales
     "sydney",
+    "coffs-harbour",
+    "hunter-valley",
+    "lake-macquarie",
+    "lismore",
+    "newcastle",
+    "northern-beaches",
+    "nsw-central-coast",
+    "nsw-central-west",
+    "nsw-north-coast",
+    "nsw-south-coast",
+    "port-macquarie",
+    "tamworth",
+    "taree",
+    "wagga-wagga",
+    "wollongong",
+    // Online
+    "online",
+    // Queensland
     "brisbane",
+    "cairns",
+    "central-queensland",
+    "darling-downs",
+    "gold-coast",
+    "ipswich",
+    "mackay",
+    "north-queensland",
+    "qld-far-north",
+    "sunshine-coast",
+    "townsville",
+    "wide-bay-burnett",
+    // South Australia
+    "adelaide",
+    "sa-far-north",
+    "sa-mid-north",
+    "sa-south",
+    "sa-west",
+    // Victoria
+    "melbourne",
+    "albury-wodonga",
+    "ballarat",
+    "bendigo",
+    "vic-east",
+    "geelong",
+    "mornington-peninsula",
+    "vic-north",
+    "vic-west",
+    // ACT
+    "canberra",
+    // Northern Territory
+    "darwin",
+    "katherine",
+    // Western Australia
     "perth",
-    "adelaide"
+    "wa-gascoyne",
+    "wa-goldfields",
+    "wa-great-southern",
+    "wa-kimberley",
+    "wa-mid-west",
+    "wa-peel",
+    "wa-pilbara",
+    "wa-south-west",
+    "wa-wheatbelt",
+    // Tasmania
+    "hobart",
+    "launceston",
+    "tas-east-coast",
+    "tas-north-west",
 ];
 
 const SUBJECTS = [
@@ -23,7 +87,12 @@ const SUBJECTS = [
     "general-maths",
     "maths-methods",
     "maths-specialist",
-    "physics"
+    "physics",
+    // New subjects
+    "french",
+    "spanish",
+    "cantonese",
+    "japanese",
 ];
 
 const BASE_URL = "https://www.tutorfinder.com.au";
@@ -144,10 +213,6 @@ async function scrapeTutorProfile(profileUrl) {
 
         // Extract Location and clean duplicates
         tutorData.location = $('.tf-profile-header h1 span.c_blue').text().trim();
-        // Simplify location cleanup: take the first part if hyphen exists
-        // const locationParts = tutorData.location.split('-');
-        // tutorData.location = locationParts[0].trim();
-
 
         // Extract Experience, Qualifications, Rates, Gender, Registered
         const profileOuterHtml = $('.tf-profile').prop('outerHTML'); // Get the full HTML of the profile section
@@ -174,7 +239,6 @@ async function scrapeTutorProfile(profileUrl) {
             .trim();
 
         // Extract Contact Info (email and mobile)
-
         let allContactInfo = [];
         $('span.c_link').each((idx, el) => {
             allContactInfo.push($(el).text().trim());
@@ -193,17 +257,6 @@ async function scrapeTutorProfile(profileUrl) {
             tutorData.mobileExtract = mobileMatch.replace(/\s/g, '');
         }
 
-
-
-
-        // Extract Subject from the profile page (main subject listed)
-        // This selector is more specific to the main subject list under "Tutoring Subjects"
-        // const subjects = [];
-        // $('.tf-profile-right .tf-subject .c_purple.bold').each((i, el) => {
-        //     subjects.push($(el).text().trim());
-        // });
-        // tutorData.subject = subjects.join(', ');
-
         return tutorData;
 
     } catch (error) {
@@ -212,15 +265,56 @@ async function scrapeTutorProfile(profileUrl) {
     }
 }
 
-function capitalizeFirstLetter(str) {
-    if (str.length === 0) {
-        return ""; // Handle empty strings
-    }
-    return str.charAt(0).toUpperCase() + str.slice(1);
+// Convert a slug like "nsw-central-coast" to "NSW Central Coast"
+function formatLocationLabel(slug) {
+    const overrides = {
+        'nsw-central-coast': 'NSW Central Coast',
+        'nsw-central-west': 'NSW Central West',
+        'nsw-north-coast': 'NSW North Coast',
+        'nsw-south-coast': 'NSW South Coast',
+        'qld-far-north': 'QLD Far North',
+        'sa-far-north': 'SA Far North',
+        'sa-mid-north': 'SA Mid North',
+        'sa-south': 'SA South',
+        'sa-west': 'SA West',
+        'vic-east': 'Eastern Victoria',
+        'vic-north': 'Northern Victoria',
+        'vic-west': 'Western Victoria',
+        'wa-gascoyne': 'WA Gascoyne',
+        'wa-goldfields': 'WA Goldfields',
+        'wa-great-southern': 'WA Great Southern',
+        'wa-kimberley': 'WA Kimberley',
+        'wa-mid-west': 'WA Mid West',
+        'wa-peel': 'WA Peel',
+        'wa-pilbara': 'WA Pilbara',
+        'wa-south-west': 'WA South West',
+        'wa-wheatbelt': 'WA Wheatbelt',
+        'tas-east-coast': 'TAS East Coast',
+        'tas-north-west': 'TAS North West',
+    };
+    if (overrides[slug]) return overrides[slug];
+    return slug
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function formatSubjectLabel(slug) {
+    const overrides = {
+        'english-language': 'English Language',
+        'english-literature': 'English Literature',
+        'general-maths': 'General Maths',
+        'maths-methods': 'Maths Methods',
+        'maths-specialist': 'Maths Specialist',
+    };
+    if (overrides[slug]) return overrides[slug];
+    return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 async function main() {
-    // Original scraping logic
+    // Ensure cache directory exists
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+
     let allTutorsData = [];
     const limiter = limit(50); // Limit to 50 concurrent requests
 
@@ -237,8 +331,8 @@ async function main() {
                 if (tutorData) {
                     allTutorsData.push({
                         ...tutorData,
-                        subject: capitalizeFirstLetter(subject),
-                        location: capitalizeFirstLetter(location)
+                        subject: formatSubjectLabel(subject),
+                        location: formatLocationLabel(location)
                     });
                 }
             });
